@@ -1,0 +1,12 @@
+## Interface: 16001
+## Title: Range Box
+## Notes: Distance to your target (and mouseover) in a clean box that turns red when out of range. /rb
+## Author: pedrohcg
+## Version: 0.1.0
+## SavedVariables: RangeBoxDB
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibRangeCheck-3.0\LibRangeCheck-3.0.lua
+Logic.lua
+RangeBox.lua
