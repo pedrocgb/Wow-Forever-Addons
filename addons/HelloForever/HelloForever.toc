@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: HelloForever
+## Notes: Starter template. /hf
+## Author: pedrohcg
+## Version: 0.1.0
+## SavedVariables: HelloForeverDB
+
+HelloForever.lua
