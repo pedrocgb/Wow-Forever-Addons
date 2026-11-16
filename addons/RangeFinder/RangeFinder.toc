@@ -1,0 +1,9 @@
+## Interface: 16001
+## Title: Range Finder
+## Notes: Draws your spell, item or attack range on the ground around you. /rf
+## Author: pedrohcg
+## Version: 0.2.0
+## SavedVariables: RangeFinderDB
+
+Projection.lua
+RangeFinder.lua

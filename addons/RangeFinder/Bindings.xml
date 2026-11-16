@@ -1,0 +1,5 @@
+<Bindings>
+    <Binding name="RANGEFINDER_SETDEFAULT" category="Range Finder">
+        RangeFinder_SetFromHover()
+    </Binding>
+</Bindings>
