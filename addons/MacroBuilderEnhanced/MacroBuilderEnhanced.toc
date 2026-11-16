@@ -1,0 +1,15 @@
+## Interface: 16001
+## Title: Macro Builder Enhanced
+## Notes: Macro editor with folders, icon search/filters and a point-and-click line builder. /mbe, /mbe options
+## Author: pedrohcg
+## Version: 0.2.0
+## SavedVariables: MacroBuilderEnhancedDB
+## SavedVariablesPerCharacter: MacroBuilderEnhancedCharDB
+
+Data\Icons.lua
+Builder.lua
+IconSearch.lua
+Folders.lua
+Skin.lua
+UI.lua
+Options.lua
