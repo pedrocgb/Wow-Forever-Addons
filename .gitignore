@@ -1,0 +1,3 @@
+# Third-party clones (Blizzard UI source, Ace3, annotations, wiki): refresh with git pull, see CLAUDE.md
+reference/
+*.zip

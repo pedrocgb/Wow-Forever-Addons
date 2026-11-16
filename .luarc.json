@@ -1,0 +1,6 @@
+{
+  "runtime.version": "Lua 5.1",
+  "workspace.library": ["reference/vscode-wow-api/Annotations/Core", "reference/vscode-wow-api/Annotations/FrameXML"],
+  "workspace.ignoreDir": ["reference"],
+  "diagnostics.globals": ["SLASH_HELLOFOREVER1"]
+}
