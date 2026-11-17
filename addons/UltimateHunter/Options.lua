@@ -17,6 +17,14 @@ local DEFAULTS = {
 	hawkColText = "ffeef0f5",
 	hawkPos = {},
 	hawkNpcs = {},    -- learned hawk NPC IDs besides the known one
+	-- Ammo
+	ammoEnabled = true,
+	ammoShowBags = true,
+	ammoWarnAt = 200,
+	ammoAlert = true,
+	ammoSound = "raid",
+	ammoFontSize = 16,
+	ammoPos = {},
 }
 
 -- Per bar, saved as <bar key><Name>: rangedScale, mainColFill... Colours are "AARRGGBB".
@@ -90,6 +98,14 @@ local function slider(key, name, min, max, step, format, tooltip)
 	Settings.CreateSlider(cat, setting(key, Settings.VarType.Number, name), options, tooltip)
 end
 
+-- Closes the settings so the simulated alert is visible, then fires it.
+local function testButton(tooltip, fire)
+	lay:AddInitializer(CreateSettingsButtonInitializer("Test", "Test warning", function()
+		SettingsPanel:Close(true) -- true: don't fall back to the Esc menu
+		fire()
+	end, tooltip, false))
+end
+
 local function color(key, name, tooltip)
 	Settings.CreateColorSwatch(cat, setting(key, Settings.VarType.String, name), tooltip)
 end
@@ -149,9 +165,13 @@ local function barPage(bar)
 		dropdown(k .. "Sound", "Stop sound", SOUND_CHOICES, "Sound when you are still moving at the stop line.", ns.PlaySound)
 		slider(k .. "AlertEarly", "Alert early", 0, 400, 10, "%d ms",
 			"Fire the alert this much before the stop line, to give you time to react.")
+		testButton("Close the settings and fire the stop-line alert (flash and sound as set above).",
+			function() ns.TestSwingAlert(k) end)
 	else
 		check(k .. "Flash", "Flash on each swing", "Flash the " .. label .. " bar each time it swings.")
 		dropdown(k .. "Sound", "Sound on each swing", SOUND_CHOICES, "Sound each time the " .. label .. " swings.", ns.PlaySound)
+		testButton("Close the settings and fire the swing alert (flash and sound as set above).",
+			function() ns.TestSwingAlert(k) end)
 	end
 	header("Colours")
 	lay:AddInitializer(CreateSettingsButtonInitializer("Bar colours", "Open colour table", function()
@@ -230,7 +250,7 @@ local function createSettings()
 	cat, lay = category, layout
 
 	header("Swing Timer")
-	check("locked", "Lock frames", "Uncheck to drag the swing bars and hawk icons around.")
+	check("locked", "Lock frames", "Uncheck to drag the swing bars, hawk icons and ammo counter around.")
 	check("anchored", "Anchor bars together",
 		"On: the bars stack and move as one group. Off: drag each bar anywhere on its own.")
 	slider("spacing", "Spacing", 0, 20, 1, "%d px", "Gap between anchored bars.")
@@ -246,6 +266,17 @@ local function createSettings()
 	slider("hawkSpacing", "Icon spacing", 0, 20, 1, "%d px")
 	slider("hawkFontSize", "Timer font size", 8, 32, 1, "%d")
 	color("hawkColText", "Timer text")
+
+	header("Ammo")
+	check("ammoEnabled", "Show ammo counter", "Your equipped ammo, counted across all your bags.")
+	check("ammoShowBags", "Show quiver / bags split",
+		"How much of it is in your quiver or ammo pouch (haste bonus) and how much in normal bags (amber).")
+	slider("ammoWarnAt", "Low ammo at", 0, 1000, 50, "%d",
+		"The count turns red at or below this. 200 is one stack.")
+	check("ammoAlert", "Low ammo warning", "Show \"Almost out of ammo\" like a raid warning, once each time you drop that low.")
+	dropdown("ammoSound", "Low ammo sound", SOUND_CHOICES, "Sound with the low ammo warning.", ns.PlaySound)
+	testButton("Close the settings and show the low ammo warning.", function() ns.AmmoWarn(ns.db.ammoWarnAt) end)
+	slider("ammoFontSize", "Font size", 8, 32, 1, "%d")
 
 	layout:AddInitializer(CreateSettingsButtonInitializer("Reset", "Reset to defaults", resetAll,
 		"Put every setting and position back to default.", true))
@@ -281,7 +312,7 @@ SlashCmdList.ULTIMATEHUNTER = function(msg)
 		settings.locked:SetValue(command == "lock")
 		say(ns.db.locked and "frames locked." or "frames unlocked, drag them where you like.")
 	elseif command == "reset" then
-		ns.db.pos, ns.db.hawkPos = {}, {}
+		ns.db.pos, ns.db.hawkPos, ns.db.ammoPos = {}, {}, {}
 		for _, bar in ipairs(ns.BARS) do ns.db[bar.key .. "Pos"] = {} end
 		ns.Apply()
 		say("positions reset.")

@@ -234,6 +234,8 @@ end
 ---------------------------------------------------------------------------
 
 -- Per bar: always | combat | auto (Auto Shot on) | combatAuto. Unlocked shows everything to drag.
+local testing -- bar key shown by the settings' test button, whatever its visibility rules
+
 local function wanted(mode)
 	if not ns.db.locked or mode == "always" then return true end
 	if mode == "combat" then return inCombat end
@@ -302,7 +304,7 @@ local function apply()
 			row.mark2:SetShown(row.center)
 		end
 
-		local on = get("Show") and (has[row.def.type] or not db.locked) and wanted(get("Visibility"))
+		local on = k == testing or get("Show") and (has[row.def.type] or not db.locked) and wanted(get("Visibility"))
 		row:SetShown(on and true or false)
 		row:EnableMouse(not db.locked) -- locked bars never eat clicks
 		if not db.anchored then
@@ -342,6 +344,22 @@ for _, row in ipairs(rows) do
 	end)
 end
 ns.modules[#ns.modules + 1] = apply
+
+-- Settings test button: show the bar for 2 s and fire its alert as configured (flash, sound).
+function ns.TestSwingAlert(key)
+	testing = key
+	apply()
+	for _, row in ipairs(rows) do
+		if row.def.key == key then
+			if ns.db[key .. "Flash"] then flash(row) end
+			playSound(ns.db[key .. "Sound"])
+		end
+	end
+	C_Timer.After(2, function()
+		testing = nil
+		apply()
+	end)
+end
 
 ---------------------------------------------------------------------------
 -- Events

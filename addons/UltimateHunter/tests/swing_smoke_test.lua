@@ -66,8 +66,20 @@ local inRange, autoSlot
 C_SwingTimer = { EnableRangeCheck = function() end, IsTargetWithinSwingRange = function() return inRange end }
 C_ActionBar = { IsAutoRepeatAction = function(slot) return slot == autoSlot end }
 
+-- Bags: [bag] = { family, { {itemID, stackCount}... } }. Bag 1 is a quiver.
+local ammoID, bagData, warnings = nil, {}, {} -- no ammo until the ammo section
+INVSLOT_AMMO, NUM_BAG_SLOTS = 0, 4
+GetInventoryItemID = function(_, slot) return slot == 0 and ammoID or nil end
+C_Container = {
+	GetContainerNumFreeSlots = function(b) return 0, bagData[b] and bagData[b][1] or 0 end,
+	GetContainerNumSlots = function(b) return bagData[b] and #bagData[b][2] or 0 end,
+	GetContainerItemInfo = function(b, i) local it = bagData[b][2][i] return it and { itemID = it[1], stackCount = it[2] } end,
+}
+C_Item = { GetItemIconByID = function() return 1 end }
+RaidWarningUtil = { AddMessage = function(t) warnings[#warnings + 1] = t end }
+ChatTypeInfo = {}
 local ns = {}
-for _, file in ipairs({ "Logic.lua", "Swing.lua", "Hawk.lua", "Options.lua" }) do assert(loadfile(file))("UltimateHunter", ns) end
+for _, file in ipairs({ "Logic.lua", "Swing.lua", "Hawk.lua", "Ammo.lua", "Options.lua" }) do assert(loadfile(file))("UltimateHunter", ns) end
 local function broadcast(event, ...)
 	for _, f in ipairs(frames) do if f._events[event] then f:Fire("OnEvent", event, ...) end end
 end
@@ -209,3 +221,46 @@ assert(shownIcons() == 0 and not hawkFrame:IsShown(), "expired")
 broadcast("UNIT_SPELLCAST_SUCCEEDED", "player", "guid", 133)
 assert(shownIcons() == 0)
 print("hawk smoke ok")
+
+-- Ammo -------------------------------------------------------------------
+local ammo = UltimateHunterAmmo
+local function ammoTexts()
+	local t = {}
+	for _, f in ipairs(frames) do if f._text then t[#t + 1] = f._text end end
+	return t
+end
+local function has(text) for _, t in ipairs(ammoTexts()) do if t == text then return true end end end
+ammoID = 2512
+bagData = { [0] = { 0, { { 2512, 200 }, { 9999, 50 } } }, [1] = { 1, { { 2512, 200 }, { 2512, 100 } } } }
+broadcast("BAG_UPDATE_DELAYED")
+assert(ammo:IsShown() and has(500), "total counts only the equipped ammo")
+assert(has("Quiver 300 · |cffffb847Bags 200|r"), "split, bags part amber")
+assert(#warnings == 0)
+bagData[0][2][1] = nil bagData[1][2][2] = nil -- down to one stack
+broadcast("BAG_UPDATE_DELAYED")
+assert(has(200) and #warnings == 1 and warnings[1]:match("200 left"), "low ammo warning")
+assert(has("Quiver 200 · Bags 0"))
+bagData[1][2][1][2] = 150 broadcast("BAG_UPDATE_DELAYED")
+assert(#warnings == 1, "warns once per drop")
+bagData[1][2][1][2] = 1000 broadcast("BAG_UPDATE_DELAYED")
+bagData[1][2][1][2] = 100 broadcast("BAG_UPDATE_DELAYED")
+assert(#warnings == 2, "re-armed after restock")
+bagData[1] = nil broadcast("BAG_UPDATE_DELAYED")
+assert(has("|cffffb847No quiver|r · Bags 0"))
+ammoID = nil broadcast("PLAYER_EQUIPMENT_CHANGED")
+assert(not ammo:IsShown(), "hidden with no ammo equipped")
+print("ammo smoke ok")
+
+-- Settings test buttons.
+local timers = {}
+C_Timer = { After = function(_, fn) timers[#timers + 1] = fn end }
+broadcast("PLAYER_REGEN_ENABLED") ns.Apply()
+assert(not main:IsShown())
+local s0, p0 = sounds, played
+ns.TestSwingAlert("main")
+assert(main:IsShown() and played == p0 + 1 and sounds == s0 + 1, "melee test shows the bar and fires")
+timers[1]() assert(not main:IsShown(), "hidden again after the test")
+local w0 = #warnings
+ns.AmmoWarn(ns.db.ammoWarnAt)
+assert(#warnings == w0 + 1 and warnings[#warnings]:match("200 left"))
+print("test buttons ok")

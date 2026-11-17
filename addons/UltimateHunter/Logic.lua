@@ -131,3 +131,14 @@ function ns.HawkExpire(hawks, now)
 	end
 	return removed
 end
+
+---------------------------------------------------------------------------
+-- Ammo
+---------------------------------------------------------------------------
+
+-- Low-ammo alert fires once per drop to `warnAt` and re-arms after restocking above it.
+-- Returns fire, armed.
+function ns.AmmoAlert(armed, total, warnAt)
+	if total > warnAt then return false, true end
+	return armed, false
+end

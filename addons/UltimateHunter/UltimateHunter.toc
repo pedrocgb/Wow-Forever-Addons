@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: The Ultimate Hunter Addon
-## Notes: Hunter utilities: swing timers with the Auto Shot stop window, Summon Hawk tracker. /uh
+## Notes: Hunter utilities: swing timers with the Auto Shot stop window, Summon Hawk tracker, ammo counter. /uh
 ## Author: pedrohcg
 ## Version: 0.1.0
 ## SavedVariables: UltimateHunterDB
@@ -8,4 +8,5 @@
 Logic.lua
 Swing.lua
 Hawk.lua
+Ammo.lua
 Options.lua
