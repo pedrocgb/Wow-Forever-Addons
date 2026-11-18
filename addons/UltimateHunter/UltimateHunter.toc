@@ -6,6 +6,7 @@
 ## SavedVariables: UltimateHunterDB
 
 Logic.lua
+Skin.lua
 Swing.lua
 Hawk.lua
 Ammo.lua

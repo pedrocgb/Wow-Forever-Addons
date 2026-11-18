@@ -26,6 +26,12 @@ function Frame:SetPoint(...) self._point = { ... } end
 function Frame:ClearAllPoints() self._point = nil end
 function Frame:GetWidth() return 200 end
 function Frame:GetStringHeight() return 14 end
+function Frame:GetStringWidth() return 50 end
+function Frame:GetName() return self._name end
+function Frame:HookScript(n, fn)
+	local old = self._scripts[n]
+	self._scripts[n] = old and function(...) old(...) fn(...) end or fn
+end
 function Frame:SetupMenu(fn) self._menu = fn end
 function Frame:SetAlpha(a) self._alpha = a end
 function Frame:GetFrameLevel() return 1 end
@@ -34,7 +40,11 @@ function Frame:CreateFontString() return newFrame() end
 function Frame:CreateAnimationGroup() local g = newFrame() function g:Play() played = (played or 0) + 1 end return g end
 
 local now, speed, sounds = 100, 2, 0
-CreateFrame = function(_, name) local f = newFrame() if name then _G[name] = f end return f end
+CreateFrame = function(_, name) local f = newFrame() if name then _G[name] = f f._name = name end return f end
+CreateFont = function() return newFrame() end
+AnchorUtil, ScrollUtil = M, M -- Skin.lua
+tDeleteItem = function(t, v) for i = #t, 1, -1 do if t[i] == v then table.remove(t, i) end end end
+issecretvalue = function() return false end
 UIParent = newFrame()
 Enum = { PlayerSwingType = { MainHand = 0, OffHand = 1, Ranged = 2 } }
 SOUNDKIT = setmetatable({}, { __index = function(_, k) return k end })
@@ -58,7 +68,8 @@ UnitExists = function(u) return units[u] ~= nil end
 UnitIsMinion = function(u) return units[u] and units[u].minion end
 UnitIsOwnerOrControllerOfUnit = function(_, u) return units[u] and units[u].owned end
 UnitGUID = function(u) return units[u] and units[u].guid end
-C_CreatureInfo = { GetCreatureID = function(guid) return tonumber(guid:match("%-(%d+)%-%w+$")) end }
+C_CreatureInfo = { GetCreatureID = function(guid) return tonumber(guid:match("%-(%d+)%-%w+$")) end,
+	GetCreatureFamilyInfo = function(id) return id == 2 and { id = 2, name = "Cat", iconFile = 132185 } or nil end }
 IsInGroup = function() return inGroup end
 local plates = {}
 C_NamePlate = { GetNamePlateForUnit = function(u) plates[u] = plates[u] or newFrame() return plates[u] end }
@@ -91,12 +102,14 @@ Enum.SpellBookSpellBank = { Player = 0, Pet = 1 }
 UnitCreatureFamily = function() if pet then return "Cat", 2 end end
 GetPetExperience = function() return 50, 200 end
 UnitLevel = function() return 20 end
+UnitName = function() return "Shadow" end
+SetPortraitTexture = function() end
 UISpecialFrames = {}
 tinsert = table.insert
 TooltipDataProcessor = M -- PetHooks.lua
 Enum.TooltipDataType = { Unit = 2 }
 C_AddOns = { IsAddOnLoaded = function() return false end }
-for _, file in ipairs({ "Logic.lua", "Swing.lua", "Hawk.lua", "Ammo.lua", "PetData.lua", "PetTraining.lua", "PetHooks.lua",
+for _, file in ipairs({ "Logic.lua", "Skin.lua", "Swing.lua", "Hawk.lua", "Ammo.lua", "PetData.lua", "PetTraining.lua", "PetHooks.lua",
 	"Options.lua" }) do
 	local f = io.open(file) -- PetHooks.lua is written separately and may not exist yet
 	if f then f:close() assert(loadfile(file))("UltimateHunter", ns) else assert(file == "PetHooks.lua", file) end
@@ -287,51 +300,84 @@ assert(#warnings == w0 + 1 and warnings[#warnings]:match("200 left"))
 print("test buttons ok")
 
 -- Pet training guide ------------------------------------------------------
-local realPetData = ns.PetData
+local realPetData, waypoint = ns.PetData, nil
+ns.PetWaypoint = function(npc) waypoint = npc end
 ns.TogglePetGuide()
 local guide = UltimateHunterPetGuide
-assert(guide and guide:IsShown() and UISpecialFrames[#UISpecialFrames] == "UltimateHunterPetGuide", "guide opens")
+assert(guide and guide:IsShown(), "guide opens")
+local inSpecial
+for _, n in ipairs(UISpecialFrames) do inSpecial = inSpecial or n == "UltimateHunterEscCatcher" end
+assert(inSpecial, "Escape catcher registered")
+guide:Fire("OnShow") -- the fake Show doesn't run scripts
+UltimateHunterEscCatcher:Fire("OnHide") -- what the game does on Escape
+assert(not guide:IsShown(), "Escape closes the guide")
+ns.TogglePetGuide() assert(guide:IsShown())
+
 local function guideHas(pattern)
 	for _, f in ipairs(frames) do if type(f._text) == "string" and f._text:match(pattern) then return true end end
 end
-local function clickTab(i)
-	local n = 0
+local function click(text) -- the clickable frame labelled `text`
 	for _, f in ipairs(frames) do
-		if f._text == ({ "How it works", "My pet", "Abilities", "Where to tame" })[i] then f:Fire("OnClick") n = n + 1 end
+		if f._text == text and f._scripts.OnClick then return f:Fire("OnClick") end
 	end
-	assert(n == 1, "tab button " .. i)
+	error("no button " .. text)
 end
-assert(guideHas("Tame Beast") and guideHas("Data: wowhead.com/forever"))
-clickTab(2) assert(guideHas("no pet out"))
-ns.PetData = {} -- empty-data path
-clickTab(4) assert(guideHas("No data yet"))
+local function allPages() for _, p in ipairs({ "Guide", "My pet", "Families", "Abilities", "Tame finder" }) do click(p) end end
+local function beastRows() -- names on the shown Tame finder rows
+	local out = {}
+	for _, f in ipairs(frames) do if f.map and f._shown then out[#out + 1] = f.name._text end end
+	return out
+end
+local radios = {}
+local function menus() -- runs every dropdown generator, collecting its choices by label
+	local root = { SetScrollMode = function() end, CreateRadio = function(_, label, _, set) radios[label] = set end }
+	for _, f in ipairs(frames) do if f._menu then f._menu(f, root) end end
+end
+
+assert(guideHas("Tame a beast") and guideHas("Data: wowhead.com/forever"))
+allPages() -- real data, no pet
+click("My pet") assert(guideHas("No pet summoned"))
+ns.PetData = {} ns.PetResetIndex()
+allPages() assert(guideHas("No data yet"), "empty data")
 units.pet = {} pet = true
+allPages() -- empty data with a pet
+ns.PetData = realPetData ns.PetResetIndex()
+allPages() -- real data with a pet
+click("My pet") assert(guideHas("Cat · Level 20"))
 ns.PetData = {
-	families = { [2] = { name = "Cat", diet = { "Meat", "Fish" }, abilities = { "Claw", "Growl" } },
+	families = { [2] = { name = "Cat", diet = { "Meat", "Fish" }, abilities = { "Claw", "Growl", "Swipe" } },
 		[1] = { name = "Wolf", diet = { "Meat" }, abilities = { "Bite", "Growl" } } },
-	abilities = { Claw = { taught = "tame", ranks = { { spell = 101, level = 8, tp = 1 }, { spell = 102, level = 16, tp = 5 } } },
-		Growl = { taught = "trainer", ranks = { { spell = 201, level = 1, tp = 0 } } } },
+	abilities = { Claw = { taught = "tame", ranks = { { spell = 101, level = 8 }, { spell = 102, level = 16 } } },
+		Growl = { taught = "trainer", ranks = { { spell = 201, level = 1 } } },
+		Swipe = { taught = "family", ranks = { { spell = 301, level = 10 } } } },
 	beasts = { [3000] = { name = "Shadow Panther", family = 2, min = 18, max = 20, zone = "Duskwood", teaches = { { "Claw", 2 } } },
-		[3001] = { name = "Prowler", family = 2, min = 6, max = 8, zone = "Elwynn", rare = true, teaches = { { "Claw", 1 } } } },
-	source = "test data",
+		[3001] = { name = "Prowler", family = 2, min = 6, max = 8, zone = "Elwynn", rare = true, teaches = { { "Claw", 1 } } },
+		[3002] = { name = "Tabby", family = 2, min = 5, max = 6, zone = "Westfall", teaches = { { "Claw", 1 } } } },
+	source = "test data, today",
 }
 ns.PetResetIndex()
-clickTab(1) assert(guideHas("Data: test data"))
-clickTab(2)
-assert(guideHas("100") and guideHas("Happy"), "pet stats")
-assert(guideHas("Claw|r rank 1 %- next rank 2") and guideHas("Tame: Shadow Panther"), "next Claw rank from a tameable beast")
-assert(guideHas("Growl|r not learned") and guideHas("Pet trainer"))
+click("Guide") assert(guideHas("Data: test data"))
+click("My pet")
+assert(guideHas("30 / 100") and guideHas("70 free") and guideHas("Happy") and guideHas("Loyal"), "pet stats")
+assert(guideHas("Next: Rank 2 · pet lvl 16"), "Claw rank 1 known, rank 2 next")
 broadcast("UNIT_PET_TRAINING_POINTS", "pet")
-clickTab(3) assert(guideHas("Cat|r") and guideHas("diet: Meat, Fish"))
-local claw
-for _, f in ipairs(frames) do if f._text == "    Claw" then claw = f end end
-for _, f in ipairs(frames) do if f.text == claw then f:Fire("OnClick") end end -- row click -> Where to tame
-assert(guideHas("Prowler") and guideHas("rare"), "jumped to Where to tame, Claw rank 1")
-for _, f in ipairs(frames) do if f._menu then f._menu(f, M) end end -- dropdown generators
-ns.PetWaypoint = function(npc) waypoint = npc end
-clickTab(4)
+for _, f in ipairs(frames) do -- My pet's Claw card (the one with a next-rank line)
+	if f.name and f.name._text == "Claw" and f.foot and f.foot._text:match("^Next") then f:Fire("OnClick") break end
+end
+assert(table.concat(beastRows(), ",") == "Shadow Panther", "card opens the finder on the next rank")
+click("Families") assert(guideHas("Meat") and guideHas("Your pet") and guideHas("eats 2 food types"))
+for _, f in ipairs(frames) do if f.text and f.text._text == "Claw" and f.onClick then f:Fire("OnClick") break end end
+assert(table.concat(beastRows(), ",") == "Tabby,Prowler" and guideHas("Rare"), "chip opens the finder, rank 1")
 for _, f in ipairs(frames) do if f.npc == 3001 and f._shown then f:Fire("OnClick") end end
 assert(waypoint == 3001, "Map button")
+for _, f in ipairs(frames) do -- type "ELW" in the search box
+	if f.placeholder and f._shown then f.GetText = function() return "ELW" end f:Fire("OnTextChanged", true) end
+end
+assert(table.concat(beastRows(), ",") == "Prowler", "search filters by zone")
+menus()
+radios.Growl() assert(#beastRows() == 0 and guideHas("Bought from a pet trainer"), "trainer empty state")
+radios.Swipe() assert(guideHas("Family ability, new in Forever"), "family empty state")
+click("Abilities") assert(guideHas("3 abilities") and guideHas("2 ranks · lvl 8–16"))
 ns.db.petGuideEnabled = false ns.Apply()
 assert(not guide:IsShown(), "disabled hides the guide")
 ns.PetData = realPetData ns.PetResetIndex()
