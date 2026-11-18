@@ -142,3 +142,97 @@ function ns.AmmoAlert(armed, total, warnAt)
 	if total > warnAt then return false, true end
 	return armed, false
 end
+
+---------------------------------------------------------------------------
+-- Pet training (reads ns.PetData at call time; PetData.lua loads after this file)
+---------------------------------------------------------------------------
+
+local function petData() return ns.PetData or {} end
+
+function ns.PetCanLearn(familyID, ability)
+	local f = (petData().families or {})[familyID]
+	if not f then return false end
+	for _, a in ipairs(f.abilities or {}) do
+		if a == ability then return true end
+	end
+	return false
+end
+
+-- Returns rank, entry; or nil, "max" (maxed/unknown ability); or nil, "level", rank, entry.
+function ns.PetNextRank(ability, knownRank, petLevel)
+	local a = (petData().abilities or {})[ability]
+	local k = (knownRank or 0) + 1
+	local r = a and a.ranks and a.ranks[k]
+	if not r then return nil, "max" end
+	if petLevel and r.level and petLevel < r.level then return nil, "level", k, r end
+	return k, r
+end
+
+function ns.PetTPAfter(totalTP, usedTP, cost)
+	if not (totalTP and usedTP and cost) then return nil end
+	return totalTP - usedTP - cost
+end
+
+local function teaches(beast, ability, rank)
+	for _, t in ipairs(beast.teaches or {}) do
+		if t[1] == ability and t[2] == rank then return true end
+	end
+	return false
+end
+
+-- filter: { minLvl, maxLvl (level range overlap), zone, family, rareOnly }
+function ns.PetBeastsFor(ability, rank, filter)
+	local f, out = filter or {}, {}
+	for npc, b in pairs(petData().beasts or {}) do
+		local lo, hi = b.min or b.max or 0, b.max or b.min or 0
+		if teaches(b, ability, rank)
+			and (not f.minLvl or hi >= f.minLvl)
+			and (not f.maxLvl or lo <= f.maxLvl)
+			and (not f.zone or b.zone == f.zone)
+			and (not f.family or b.family == f.family)
+			and (not f.rareOnly or b.rare) then
+			out[#out + 1] = { npc = npc, beast = b }
+		end
+	end
+	table.sort(out, function(x, y)
+		local a, b = x.beast.min or 0, y.beast.min or 0
+		if a ~= b then return a < b end
+		return (x.beast.name or "") < (y.beast.name or "")
+	end)
+	return out
+end
+
+function ns.PetTeachesText(npcID, knownRanks, familyID)
+	local b = (petData().beasts or {})[npcID]
+	if not b or not b.teaches or #b.teaches == 0 then return nil end
+	knownRanks = knownRanks or {}
+	local out = {}
+	for _, t in ipairs(b.teaches) do
+		local s = t[1] .. " (Rank " .. t[2] .. ")"
+		if (knownRanks[t[1]] or 0) >= t[2] then s = s .. " - known" end
+		if familyID and not ns.PetCanLearn(familyID, t[1]) then s = s .. " - your pet can't learn" end
+		out[#out + 1] = s
+	end
+	return out
+end
+
+local spellIndex -- spellID -> { ability, rank }, built on first use
+
+function ns.PetResetIndex() spellIndex = nil end
+
+function ns.PetKnownRanks(spellIDs)
+	if not spellIndex then
+		spellIndex = {}
+		for name, a in pairs(petData().abilities or {}) do
+			for i, r in ipairs(a.ranks or {}) do
+				if r.spell then spellIndex[r.spell] = { name, i } end
+			end
+		end
+	end
+	local known = {}
+	for _, id in ipairs(spellIDs or {}) do
+		local e = spellIndex[id]
+		if e and (known[e[1]] or 0) < e[2] then known[e[1]] = e[2] end
+	end
+	return known
+end

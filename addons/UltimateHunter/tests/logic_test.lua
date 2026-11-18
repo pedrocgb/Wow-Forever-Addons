@@ -87,3 +87,66 @@ fire, armed = ns.AmmoAlert(armed, 1000, 200)
 fire, armed = ns.AmmoAlert(armed, 199, 200)
 assert(fire, "re-armed after restock")
 print("ammo ok")
+
+-- Pet training.
+ns.PetData = {
+	families = {
+		[1] = { name = "Wolf", diet = { "Meat" }, abilities = { "Bite", "Dash", "Growl" } },
+		[2] = { name = "Owl", diet = { "Meat" }, abilities = { "Claw", "Growl" } },
+	},
+	abilities = {
+		Bite = { taught = "tame", ranks = { { spell = 101, level = 1, tp = 1 }, { spell = 102, level = 8, tp = 4 }, { spell = 103, level = 16 } } },
+		Claw = { taught = "tame", ranks = { { spell = 201, level = 1, tp = 1 }, { spell = 202, level = 8, tp = 4 } } },
+		Growl = { taught = "trainer", ranks = { { spell = 301, level = 1, tp = 0 } } },
+	},
+	beasts = {
+		[10] = { name = "Prairie Wolf", family = 1, min = 5, max = 6, zone = "Mulgore", teaches = { { "Bite", 2 } } },
+		[11] = { name = "Ash Wolf", family = 1, min = 5, max = 7, zone = "Durotar", teaches = { { "Bite", 2 }, { "Dash", 1 } } },
+		[12] = { name = "Old Owl", family = 2, min = 20, max = 21, zone = "Mulgore", rare = true, teaches = { { "Claw", 2 }, { "Bite", 2 } } },
+		[13] = { name = "Empty", family = 2, min = 1, max = 1, teaches = {} },
+	},
+}
+assert(ns.PetCanLearn(1, "Bite") and not ns.PetCanLearn(2, "Bite") and not ns.PetCanLearn(99, "Bite"))
+local r, e = ns.PetNextRank("Bite", nil, 10)
+assert(r == 1 and e.spell == 101, "nil knownRank starts at rank 1")
+local r1, why, r2, e2 = ns.PetNextRank("Bite", 1, 5)
+assert(r1 == nil and why == "level" and r2 == 2 and e2.spell == 102)
+assert(ns.PetNextRank("Bite", 1, 8) == 2 and ns.PetNextRank("Bite", 1) == 2)
+assert(select(2, ns.PetNextRank("Bite", 3, 60)) == "max" and select(2, ns.PetNextRank("Nope", 0, 60)) == "max")
+assert(ns.PetTPAfter(10, 3, 4) == 3 and ns.PetTPAfter(5, 3, 4) == -2 and ns.PetTPAfter(5, nil, 4) == nil)
+local list = ns.PetBeastsFor("Bite", 2)
+assert(#list == 3 and list[1].npc == 11 and list[2].npc == 10 and list[3].npc == 12, "sorted by min then name")
+assert(#ns.PetBeastsFor("Bite", 2, { minLvl = 7, maxLvl = 19 }) == 1)
+assert(#ns.PetBeastsFor("Bite", 2, { zone = "Mulgore" }) == 2)
+assert(#ns.PetBeastsFor("Bite", 2, { family = 1 }) == 2)
+list = ns.PetBeastsFor("Bite", 2, { rareOnly = true })
+assert(#list == 1 and list[1].npc == 12)
+assert(#ns.PetBeastsFor("Bite", 3) == 0)
+local t = ns.PetTeachesText(12, { Bite = 2 }, 1)
+assert(t[1] == "Claw (Rank 2) - your pet can't learn" and t[2] == "Bite (Rank 2) - known", t[1])
+assert(ns.PetTeachesText(10)[1] == "Bite (Rank 2)")
+assert(ns.PetTeachesText(99) == nil and ns.PetTeachesText(13) == nil)
+ns.PetResetIndex()
+local known = ns.PetKnownRanks({ 102, 101, 301, 999 })
+assert(known.Bite == 2 and known.Growl == 1 and known.Claw == nil)
+print("pet logic ok")
+
+-- Real PetData.lua sanity, when present.
+if io.open("PetData.lua") then
+	local ns2 = {}
+	assert(loadfile("PetData.lua"))("UltimateHunter", ns2)
+	local pd = ns2.PetData
+	for id, b in pairs(pd.beasts) do
+		for _, te in ipairs(b.teaches or {}) do
+			local a = pd.abilities[te[1]]
+			assert(a and a.ranks[te[2]], "beast " .. id .. " teaches unknown " .. tostring(te[1]) .. " " .. tostring(te[2]))
+		end
+	end
+	for id, f in pairs(pd.families) do
+		for _, name in ipairs(f.abilities or {}) do
+			assert(pd.abilities[name], "family " .. id .. " has unknown ability " .. name)
+		end
+	end
+	print("pet data ok")
+end
+print("logic ok")
