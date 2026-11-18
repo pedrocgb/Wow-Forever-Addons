@@ -25,6 +25,11 @@ local DEFAULTS = {
 	ammoSound = "raid",
 	ammoFontSize = 16,
 	ammoPos = {},
+	-- Pet training
+	petGuideEnabled = true,
+	petTooltip = true,        -- what tameable beasts teach, on their tooltips
+	petTrainerOverlay = true, -- TP left at the pet trainer
+	petGuidePos = {},
 }
 
 -- Per bar, saved as <bar key><Name>: rangedScale, mainColFill... Colours are "AARRGGBB".
@@ -278,6 +283,16 @@ local function createSettings()
 	testButton("Close the settings and show the low ammo warning.", function() ns.AmmoWarn(ns.db.ammoWarnAt) end)
 	slider("ammoFontSize", "Font size", 8, 32, 1, "%d")
 
+	header("Pet Training")
+	check("petTooltip", "Show what tameable beasts teach on tooltips",
+		"On a tameable beast's tooltip: the abilities and ranks you learn by taming it.")
+	check("petTrainerOverlay", "Show TP left at the pet trainer",
+		"In the Beast Training window: your pet's training points left after each ability.")
+	lay:AddInitializer(CreateSettingsButtonInitializer("Pet guide", "Open pet guide", function()
+		SettingsPanel:Close(true)
+		ns.TogglePetGuide()
+	end, "How pet training works, your pet's abilities and where to tame each rank. Also /uh pets.", false))
+
 	layout:AddInitializer(CreateSettingsButtonInitializer("Reset", "Reset to defaults", resetAll,
 		"Put every setting and position back to default.", true))
 	Settings.RegisterAddOnCategory(category)
@@ -312,10 +327,12 @@ SlashCmdList.ULTIMATEHUNTER = function(msg)
 		settings.locked:SetValue(command == "lock")
 		say(ns.db.locked and "frames locked." or "frames unlocked, drag them where you like.")
 	elseif command == "reset" then
-		ns.db.pos, ns.db.hawkPos, ns.db.ammoPos = {}, {}, {}
+		ns.db.pos, ns.db.hawkPos, ns.db.ammoPos, ns.db.petGuidePos = {}, {}, {}, {}
 		for _, bar in ipairs(ns.BARS) do ns.db[bar.key .. "Pos"] = {} end
 		ns.Apply()
 		say("positions reset.")
+	elseif command == "pets" then
+		ns.TogglePetGuide()
 	elseif command == "debug" then
 		ns.debug = not ns.debug
 		say("hawk debug " .. (ns.debug and "on: casts, landings, sightings and deaths print to chat." or "off."))
@@ -326,6 +343,6 @@ SlashCmdList.ULTIMATEHUNTER = function(msg)
 			Settings.OpenToCategory(category:GetID())
 		end
 	else
-		say("/uh (settings) | /uh lock | /uh unlock | /uh reset | /uh debug")
+		say("/uh (settings) | /uh lock | /uh unlock | /uh reset | /uh pets (pet training guide) | /uh debug")
 	end
 end

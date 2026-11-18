@@ -25,6 +25,8 @@ function Frame:SetText(t) self._text = t end
 function Frame:SetPoint(...) self._point = { ... } end
 function Frame:ClearAllPoints() self._point = nil end
 function Frame:GetWidth() return 200 end
+function Frame:GetStringHeight() return 14 end
+function Frame:SetupMenu(fn) self._menu = fn end
 function Frame:SetAlpha(a) self._alpha = a end
 function Frame:GetFrameLevel() return 1 end
 function Frame:CreateTexture() return newFrame() end
@@ -79,7 +81,26 @@ C_Item = { GetItemIconByID = function() return 1 end }
 RaidWarningUtil = { AddMessage = function(t) warnings[#warnings + 1] = t end }
 ChatTypeInfo = {}
 local ns = {}
-for _, file in ipairs({ "Logic.lua", "Swing.lua", "Hawk.lua", "Ammo.lua", "Options.lua" }) do assert(loadfile(file))("UltimateHunter", ns) end
+-- Pets
+local pet -- nil: no pet out
+C_PetInfo = { GetPetTrainingPoints = function() return 100, 30 end, GetPetLoyalty = function() return "Loyal" end,
+	GetPetHappiness = function() return 3, 125, 1 end }
+C_SpellBook = { HasPetSpells = function() return pet and 1 or nil end,
+	GetSpellBookItemInfo = function() return { spellID = 101 } end }
+Enum.SpellBookSpellBank = { Player = 0, Pet = 1 }
+UnitCreatureFamily = function() if pet then return "Cat", 2 end end
+GetPetExperience = function() return 50, 200 end
+UnitLevel = function() return 20 end
+UISpecialFrames = {}
+tinsert = table.insert
+TooltipDataProcessor = M -- PetHooks.lua
+Enum.TooltipDataType = { Unit = 2 }
+C_AddOns = { IsAddOnLoaded = function() return false end }
+for _, file in ipairs({ "Logic.lua", "Swing.lua", "Hawk.lua", "Ammo.lua", "PetData.lua", "PetTraining.lua", "PetHooks.lua",
+	"Options.lua" }) do
+	local f = io.open(file) -- PetHooks.lua is written separately and may not exist yet
+	if f then f:close() assert(loadfile(file))("UltimateHunter", ns) else assert(file == "PetHooks.lua", file) end
+end
 local function broadcast(event, ...)
 	for _, f in ipairs(frames) do if f._events[event] then f:Fire("OnEvent", event, ...) end end
 end
@@ -264,3 +285,54 @@ local w0 = #warnings
 ns.AmmoWarn(ns.db.ammoWarnAt)
 assert(#warnings == w0 + 1 and warnings[#warnings]:match("200 left"))
 print("test buttons ok")
+
+-- Pet training guide ------------------------------------------------------
+local realPetData = ns.PetData
+ns.TogglePetGuide()
+local guide = UltimateHunterPetGuide
+assert(guide and guide:IsShown() and UISpecialFrames[#UISpecialFrames] == "UltimateHunterPetGuide", "guide opens")
+local function guideHas(pattern)
+	for _, f in ipairs(frames) do if type(f._text) == "string" and f._text:match(pattern) then return true end end
+end
+local function clickTab(i)
+	local n = 0
+	for _, f in ipairs(frames) do
+		if f._text == ({ "How it works", "My pet", "Abilities", "Where to tame" })[i] then f:Fire("OnClick") n = n + 1 end
+	end
+	assert(n == 1, "tab button " .. i)
+end
+assert(guideHas("Tame Beast") and guideHas("Data: wowhead.com/forever"))
+clickTab(2) assert(guideHas("no pet out"))
+ns.PetData = {} -- empty-data path
+clickTab(4) assert(guideHas("No data yet"))
+units.pet = {} pet = true
+ns.PetData = {
+	families = { [2] = { name = "Cat", diet = { "Meat", "Fish" }, abilities = { "Claw", "Growl" } },
+		[1] = { name = "Wolf", diet = { "Meat" }, abilities = { "Bite", "Growl" } } },
+	abilities = { Claw = { taught = "tame", ranks = { { spell = 101, level = 8, tp = 1 }, { spell = 102, level = 16, tp = 5 } } },
+		Growl = { taught = "trainer", ranks = { { spell = 201, level = 1, tp = 0 } } } },
+	beasts = { [3000] = { name = "Shadow Panther", family = 2, min = 18, max = 20, zone = "Duskwood", teaches = { { "Claw", 2 } } },
+		[3001] = { name = "Prowler", family = 2, min = 6, max = 8, zone = "Elwynn", rare = true, teaches = { { "Claw", 1 } } } },
+	source = "test data",
+}
+ns.PetResetIndex()
+clickTab(1) assert(guideHas("Data: test data"))
+clickTab(2)
+assert(guideHas("100") and guideHas("Happy"), "pet stats")
+assert(guideHas("Claw|r rank 1 %- next rank 2") and guideHas("Tame: Shadow Panther"), "next Claw rank from a tameable beast")
+assert(guideHas("Growl|r not learned") and guideHas("Pet trainer"))
+broadcast("UNIT_PET_TRAINING_POINTS", "pet")
+clickTab(3) assert(guideHas("Cat|r") and guideHas("diet: Meat, Fish"))
+local claw
+for _, f in ipairs(frames) do if f._text == "    Claw" then claw = f end end
+for _, f in ipairs(frames) do if f.text == claw then f:Fire("OnClick") end end -- row click -> Where to tame
+assert(guideHas("Prowler") and guideHas("rare"), "jumped to Where to tame, Claw rank 1")
+for _, f in ipairs(frames) do if f._menu then f._menu(f, M) end end -- dropdown generators
+ns.PetWaypoint = function(npc) waypoint = npc end
+clickTab(4)
+for _, f in ipairs(frames) do if f.npc == 3001 and f._shown then f:Fire("OnClick") end end
+assert(waypoint == 3001, "Map button")
+ns.db.petGuideEnabled = false ns.Apply()
+assert(not guide:IsShown(), "disabled hides the guide")
+ns.PetData = realPetData ns.PetResetIndex()
+print("pet guide smoke ok")

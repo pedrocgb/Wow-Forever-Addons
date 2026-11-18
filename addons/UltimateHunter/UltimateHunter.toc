@@ -9,4 +9,7 @@ Logic.lua
 Swing.lua
 Hawk.lua
 Ammo.lua
+PetData.lua
+PetTraining.lua
+PetHooks.lua
 Options.lua
