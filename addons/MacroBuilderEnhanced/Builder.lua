@@ -181,7 +181,7 @@ end
 
 --[[ Actions shown as buttons in the builder.
 	subs   : { cmd, label, flags } — flags: nocond (command ignores [conditions]), notarget (no @unit), noarg
-	fields : form fields, rendered in order. Kinds: spell (with rank), item, text, list, number, check, choice
+	fields : form fields, rendered in order. Kinds: spell (with rank), petspell (active pet's spellbook), item, text, list, number, check, choice
 	build  : values -> argument string
 	line   : optional; values -> whole line(s), or nil + error. Replaces subs/build/conditions.
 ]]
@@ -244,13 +244,14 @@ B.ACTIONS = {
 	{
 		key = "pet", label = "Pet",
 		subs = {
+			{ "/cast", "Use a pet ability" },
 			{ "/petattack", "Attack" }, { "/petfollow", "Follow", "notarget noarg" }, { "/petstay", "Stay", "notarget noarg" },
 			{ "/petmoveto", "Move to (use @cursor)" }, { "/petpassive", "Passive", "notarget noarg" },
 			{ "/petdefensive", "Defensive", "notarget noarg" }, { "/petaggressive", "Aggressive", "notarget noarg" },
 			{ "/petautocaston", "Autocast ON", "notarget" }, { "/petautocastoff", "Autocast OFF", "notarget" },
 			{ "/petautocasttoggle", "Autocast toggle", "notarget" }, { "/petdismiss", "Dismiss", "notarget noarg" },
 		},
-		fields = { { "text", "text", "Pet spell (for autocast commands)" } },
+		fields = { { "text", "petspell", "Pet ability (for Use and Autocast)" } },
 		build = function(v) return trim(v.text) end,
 	},
 	{

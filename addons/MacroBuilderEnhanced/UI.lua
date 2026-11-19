@@ -91,6 +91,20 @@ end
 
 local function Entry(name, icon) return icon and ("|T" .. icon .. ":16:16:0:0:64:64:5:59:5:59|t  " .. name) or name end
 
+-- Active pet's castable abilities (Claw, Bite, Growl...) as dropdown options.
+local function PetSpellOptions()
+	local out, seen = {}, {}
+	for slot = 1, C_SpellBook.HasPetSpells() or 0 do
+		local it = C_SpellBook.GetSpellBookItemInfo(slot, Enum.SpellBookSpellBank.Pet)
+		if it and it.itemType == Enum.SpellBookItemType.Spell and not it.isPassive and it.name and not seen[it.name] then
+			seen[it.name] = true
+			out[#out + 1] = { it.name, Entry(it.name, it.iconID) }
+		end
+	end
+	if #out == 0 then out[1] = { "", "No pet out: summon your pet to list its abilities" } end
+	return out
+end
+
 -- Dropdown option lists for the named conditionals, values already prefixed ("known:Charge").
 local NAMED_SOURCES = {
 	spell = function(prefix)
@@ -793,8 +807,10 @@ local function CreateDialog(parent)
 				checkRow = nil
 				local row = newRow(28)
 				rowLabel(row, text):SetPoint("LEFT")
-				if kind == "choice" or kind == "emote" then
-					local dd = S.Dropdown(row, 240, kind == "emote" and EmoteOptions or extra, get(key), set(key), kind == "emote" and "Choose an emote" or nil)
+				if kind == "choice" or kind == "emote" or kind == "petspell" then
+					local options = (kind == "emote" and EmoteOptions) or (kind == "petspell" and PetSpellOptions) or extra
+					local placeholder = (kind == "emote" and "Choose an emote") or (kind == "petspell" and "Choose a pet ability") or nil
+					local dd = S.Dropdown(row, 240, options, get(key), set(key), placeholder)
 					dd:SetPoint("LEFT", LABEL_W, 0)
 					f.refreshers[#f.refreshers + 1] = function() dd:Refresh() end
 				else

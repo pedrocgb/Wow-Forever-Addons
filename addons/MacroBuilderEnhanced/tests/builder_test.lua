@@ -37,6 +37,8 @@ eq(B.BuildLine(action("attack"), { sub = "/stopattack", target = "focus" }), "/s
 eq(B.BuildLine(action("stop"), { sub = "/cancelaura", text = "Ice Block", target = "focus", conds = { "mod:alt" } }), "/cancelaura [mod:alt] Ice Block")
 eq(B.BuildLine(action("marker"), { sub = "/tm", marker = "8", keep = true, target = "mouseover" }), "/tm [@mouseover] !8")
 eq(B.BuildLine(action("marker"), { sub = "/cwm", marker = "0" }), "/cwm all")
+eq(B.BuildLine(action("pet"), { sub = "/cast", text = "Claw", target = "target", conds = { "pet" } }), "/cast [@target,pet] Claw")
+eq(B.BuildLine(action("pet"), { sub = "/petautocasttoggle", text = "Growl", target = "focus" }), "/petautocasttoggle Growl")
 eq(B.BuildLine(action("equip"), { sub = "/equipslot", slot = "16", item = "Thunderfury" }), "/equipslot 16 Thunderfury")
 eq(B.BuildLine(action("tooltip"), { sub = "#showtooltip", spell = "", conds = {} }), "#showtooltip")
 eq(B.BuildLine(action("sequence"), { list = "A, B", seconds = "5", combat = true, conds = {} }), "/castsequence reset=5/combat A, B")
