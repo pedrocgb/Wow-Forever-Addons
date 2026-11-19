@@ -17,6 +17,7 @@ local DEFAULTS = {
 	hawkColText = "ffeef0f5",
 	hawkPos = {},
 	hawkNpcs = {},    -- learned hawk NPC IDs besides the known one
+	tamed = {},       -- npcID -> { { ability, rank } }: what a beast taught when tamed in game
 	-- Ammo
 	ammoEnabled = true,
 	ammoShowBags = true,
@@ -28,7 +29,6 @@ local DEFAULTS = {
 	-- Pet training
 	petGuideEnabled = true,
 	petTooltip = true,        -- what tameable beasts teach, on their tooltips
-	petTrainerOverlay = true, -- TP left at the pet trainer
 	petGuidePos = {},
 }
 
@@ -136,7 +136,7 @@ local function resetAll()
 	for key, value in pairs(DEFAULTS) do
 		if settings[key] then
 			settings[key]:SetValue(value) -- also refreshes the controls
-		elseif key ~= "hawkNpcs" then
+		elseif key ~= "hawkNpcs" and key ~= "tamed" then
 			ns.db[key] = type(value) == "table" and {} or value
 		end
 	end
@@ -286,8 +286,6 @@ local function createSettings()
 	header("Pet Training")
 	check("petTooltip", "Show what tameable beasts teach on tooltips",
 		"On a tameable beast's tooltip: the abilities and ranks you learn by taming it.")
-	check("petTrainerOverlay", "Show TP left at the pet trainer",
-		"In the Beast Training window: your pet's training points left after each ability.")
 	lay:AddInitializer(CreateSettingsButtonInitializer("Pet guide", "Open pet guide", function()
 		SettingsPanel:Close(true)
 		ns.TogglePetGuide()

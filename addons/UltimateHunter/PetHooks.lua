@@ -1,6 +1,6 @@
 local _, ns = ...
 
--- Pet training hooks: "Teaches" tooltip lines, trainer TP-left line, beast waypoints.
+-- Pet training hooks: "Teaches" tooltip lines, recording tames, beast waypoints.
 
 local function say(text)
 	print("|cff4f8fffThe Ultimate Hunter Addon|r: " .. text)
@@ -8,6 +8,8 @@ end
 
 local known = {}  -- ability -> highest rank in the pet spellbook
 local petFamily   -- familyID of the current pet, nil if none/secret
+local TAME_BEAST = 1515
+local tameAt      -- GetTime() of our last successful Tame Beast
 
 local function refreshPet()
 	local ids = {}
@@ -19,6 +21,16 @@ local function refreshPet()
 	known = ns.PetKnownRanks(ids)
 	local fam = select(2, UnitCreatureFamily("pet"))
 	petFamily = (fam and not issecretvalue(fam)) and fam or nil
+	-- A freshly tamed pet knows exactly what its beast teaches; the pet GUID keeps the beast's npcID.
+	-- Keep overwriting for a few seconds: the pet spellbook can fill in over several events.
+	if tameAt and GetTime() - tameAt < 10 and n > 0 and ns.db then
+		local npc = ns.NpcIDFromGUID(UnitGUID("pet"))
+		if npc then
+			local first = not ns.db.tamed[npc]
+			ns.db.tamed[npc] = ns.PetTamedTeaches(known)
+			if first then say("recorded what " .. (UnitName("pet") or npc) .. " teaches.") end
+		end
+	end
 end
 
 -- "Creature-0-server-instance-zone-npcID-spawn" -> npcID; nil for players etc.
@@ -37,45 +49,12 @@ TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tool
 	local _, unit = tooltip:GetUnit()
 	if not unit or issecretvalue(unit) then return end
 	local npcID = ns.NpcIDFromGUID(UnitGUID(unit))
-	local lines = npcID and ns.PetTeachesText(npcID, known, petFamily)
+	local lines, confirmed
+	if npcID then lines, confirmed = ns.PetTeachesText(npcID, known, petFamily) end
 	if not lines then return end
-	tooltip:AddLine("Teaches:", 0.67, 0.83, 0.45) -- hunter class colour
+	tooltip:AddLine(confirmed and "Teaches:" or "Teaches (Classic data, unconfirmed):", 0.67, 0.83, 0.45) -- hunter class colour
 	for _, s in ipairs(lines) do tooltip:AddLine(s, 1, 1, 1) end
 end)
-
----------------------------------------------------------------------------
--- Trainer overlay (Blizzard_TrainerUI is load-on-demand)
----------------------------------------------------------------------------
-
-local overlay
-
-local function updateOverlay()
-	if not overlay then return end
-	local skill = GetTrainerSelectionIndex()
-	local cost = skill and skill > 0 and GetTrainerServiceCost(skill)
-	if not (ns.db and ns.db.petTrainerOverlay) or C_Trainer.GetTrainerType() ~= Enum.TrainerType.Pet
-		or not cost or cost <= 0 then
-		overlay:Hide()
-		return
-	end
-	local total, used = C_PetInfo.GetPetTrainingPoints()
-	local left = ns.PetTPAfter(total, used, cost)
-	if not left then overlay:Hide() return end
-	overlay:SetText("TP left after training: " .. left)
-	if left < 0 then overlay:SetTextColor(1, 0.2, 0.2) else overlay:SetTextColor(1, 0.82, 0) end
-	overlay:Show()
-end
-
-local function hookTrainer()
-	if overlay then return end
-	-- trainingPoints is only shown in pet mode, so the overlay hides with it.
-	local tp = ClassTrainerFrame.trainingPoints
-	overlay = tp:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-	overlay:SetPoint("LEFT", tp.text, "RIGHT", 12, 0)
-	overlay:Hide()
-	hooksecurefunc("ClassTrainer_SetSelection", updateOverlay)
-	hooksecurefunc("ClassTrainerFrame_UpdateTrainingPoints", updateOverlay)
-end
 
 ---------------------------------------------------------------------------
 -- Waypoints
@@ -109,18 +88,15 @@ end
 
 ---------------------------------------------------------------------------
 
-ns.modules[#ns.modules + 1] = updateOverlay
-
 local frame = CreateFrame("Frame")
-frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:RegisterEvent("SPELLS_CHANGED")
 frame:RegisterUnitEvent("UNIT_PET", "player")
-frame:SetScript("OnEvent", function(_, event, arg1)
-	if event == "ADDON_LOADED" then
-		if arg1 == "Blizzard_TrainerUI" then hookTrainer() end
+frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+frame:SetScript("OnEvent", function(_, event, _, _, spellID)
+	if event == "UNIT_SPELLCAST_SUCCEEDED" then
+		if not issecretvalue(spellID) and spellID == TAME_BEAST then tameAt = GetTime() refreshPet() end
 	else
 		refreshPet()
 	end
 end)
-if C_AddOns.IsAddOnLoaded("Blizzard_TrainerUI") then hookTrainer() end

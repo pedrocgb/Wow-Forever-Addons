@@ -168,13 +168,26 @@ function ns.PetNextRank(ability, knownRank, petLevel)
 	return k, r
 end
 
-function ns.PetTPAfter(totalTP, usedTP, cost)
-	if not (totalTP and usedTP and cost) then return nil end
-	return totalTP - usedTP - cost
+-- What a beast teaches: recorded in game when tamed (Forever truth) beats the shipped Classic data.
+local function teachesList(npcID, beast)
+	local rec = ns.db and ns.db.tamed and ns.db.tamed[npcID]
+	if rec then return rec, true end
+	return beast and beast.teaches, false
 end
 
-local function teaches(beast, ability, rank)
-	for _, t in ipairs(beast.teaches or {}) do
+-- known ranks of a freshly tamed pet -> teaches list; trainer-only skills aren't learned from beasts.
+-- shortcut: Forever-only spells missing from PetData (e.g. Faster Attack) are not recorded; add them to the harvest to record them.
+function ns.PetTamedTeaches(knownRanks)
+	local out, abilities = {}, petData().abilities or {}
+	for name, rank in pairs(knownRanks or {}) do
+		if abilities[name] and abilities[name].taught ~= "trainer" then out[#out + 1] = { name, rank } end
+	end
+	table.sort(out, function(x, y) return x[1] < y[1] end)
+	return out
+end
+
+local function teaches(npcID, beast, ability, rank)
+	for _, t in ipairs(teachesList(npcID, beast) or {}) do
 		if t[1] == ability and t[2] == rank then return true end
 	end
 	return false
@@ -185,7 +198,7 @@ function ns.PetBeastsFor(ability, rank, filter)
 	local f, out = filter or {}, {}
 	for npc, b in pairs(petData().beasts or {}) do
 		local lo, hi = b.min or b.max or 0, b.max or b.min or 0
-		if teaches(b, ability, rank)
+		if teaches(npc, b, ability, rank)
 			and (not f.minLvl or hi >= f.minLvl)
 			and (not f.maxLvl or lo <= f.maxLvl)
 			and (not f.zone or b.zone == f.zone)
@@ -202,18 +215,19 @@ function ns.PetBeastsFor(ability, rank, filter)
 	return out
 end
 
+-- Returns lines, confirmed (true when recorded from a tame in game).
 function ns.PetTeachesText(npcID, knownRanks, familyID)
-	local b = (petData().beasts or {})[npcID]
-	if not b or not b.teaches or #b.teaches == 0 then return nil end
+	local list, confirmed = teachesList(npcID, (petData().beasts or {})[npcID])
+	if not list or #list == 0 then return nil end
 	knownRanks = knownRanks or {}
 	local out = {}
-	for _, t in ipairs(b.teaches) do
+	for _, t in ipairs(list) do
 		local s = t[1] .. " (Rank " .. t[2] .. ")"
 		if (knownRanks[t[1]] or 0) >= t[2] then s = s .. " - known" end
 		if familyID and not ns.PetCanLearn(familyID, t[1]) then s = s .. " - your pet can't learn" end
 		out[#out + 1] = s
 	end
-	return out
+	return out, confirmed
 end
 
 local spellIndex -- spellID -> { ability, rank }, built on first use

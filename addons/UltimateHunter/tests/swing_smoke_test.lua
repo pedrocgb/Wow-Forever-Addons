@@ -382,3 +382,4 @@ ns.db.petGuideEnabled = false ns.Apply()
 assert(not guide:IsShown(), "disabled hides the guide")
 ns.PetData = realPetData ns.PetResetIndex()
 print("pet guide smoke ok")
+
